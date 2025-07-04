@@ -21,7 +21,6 @@ instance/
 local_settings.py
 settings_local.py
 .env
-.env.*
 
 # Django migration files
 **/migrations/

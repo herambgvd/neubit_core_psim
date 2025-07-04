@@ -1,4 +1,3 @@
-
 """
 Base Django settings for Neubit PSIM Core Platform Service.
 
@@ -14,12 +13,16 @@ Key Features:
 """
 
 import os
-import sys
 from pathlib import Path
-from typing import List
 
 import environ
 import structlog
+
+try:
+    import pythonjsonlogger.jsonlogger
+except ImportError:
+    # Fallback if pythonjsonlogger is not installed
+    pythonjsonlogger = None
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -148,7 +151,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
@@ -298,7 +300,7 @@ RATELIMIT_USE_CACHE = 'default'
 # Health check configuration
 HEALTH_CHECK = {
     'DISK_USAGE_MAX': 90,  # percent
-    'MEMORY_MIN': 100,     # MB
+    'MEMORY_MIN': 100,  # MB
 }
 
 # Configure structured logging
@@ -336,19 +338,22 @@ LOGGING = {
         'json': {
             '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
             'format': '%(asctime)s %(name)s %(levelname)s %(message)s'
+        } if pythonjsonlogger else {
+            'format': '{levelname} {asctime} {name} {message}',
+            'style': '{',
         },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'json',
+            'formatter': 'json' if pythonjsonlogger else 'verbose',
         },
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': 'logs/core_platform.log',
-            'maxBytes': 1024*1024*15,  # 15MB
+            'filename': os.path.join(BASE_DIR.parent, 'logs', 'core_platform.log'),
+            'maxBytes': 1024 * 1024 * 15,  # 15MB
             'backupCount': 10,
-            'formatter': 'json',
+            'formatter': 'json' if pythonjsonlogger else 'verbose',
         },
     },
     'root': {
@@ -361,7 +366,7 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        'core_platform': {
+        'core': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
@@ -373,3 +378,7 @@ LOGGING = {
         },
     },
 }
+
+# Logs Directory
+logs_dir = BASE_DIR.parent / 'logs'
+logs_dir.mkdir(exist_ok=True)
