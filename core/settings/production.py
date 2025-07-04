@@ -4,20 +4,14 @@ Production settings for Neubit PSIM Core Platform Service.
 This module contains settings specific to the production environment.
 It inherits from base settings and overrides configurations for
 production deployment with security and performance optimizations.
-
-Key Features:
-- Enhanced security settings
-- Production database configuration
-- Error logging and monitoring
-- Performance optimizations
-- SSL/HTTPS configuration
 """
 
-from .base import *
 import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.celery import CeleryIntegration
+from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
+
+from .base import *
 
 # Production mode - Debug must be False
 DEBUG = False
@@ -144,7 +138,7 @@ LOGGING = {
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': env('LOG_FILE', default='/var/log/neubit/core_platform.log'),
-            'maxBytes': 1024*1024*50,  # 50MB
+            'maxBytes': 1024 * 1024 * 50,  # 50MB
             'backupCount': 20,
             'formatter': 'json',
             'level': 'INFO',
@@ -152,7 +146,7 @@ LOGGING = {
         'error_file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': env('ERROR_LOG_FILE', default='/var/log/neubit/core_platform_error.log'),
-            'maxBytes': 1024*1024*50,  # 50MB
+            'maxBytes': 1024 * 1024 * 50,  # 50MB
             'backupCount': 10,
             'formatter': 'json',
             'level': 'ERROR',
@@ -218,10 +212,10 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
 
 # Production-specific middleware
 MIDDLEWARE = [
-    'django.middleware.cache.UpdateCacheMiddleware',
-] + MIDDLEWARE + [
-    'django.middleware.cache.FetchFromCacheMiddleware',
-]
+                 'django.middleware.cache.UpdateCacheMiddleware',
+             ] + MIDDLEWARE + [
+                 'django.middleware.cache.FetchFromCacheMiddleware',
+             ]
 
 # Cache middleware settings
 CACHE_MIDDLEWARE_ALIAS = 'default'
@@ -255,10 +249,5 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
 # Admin configuration
 ADMINS = env.list('ADMINS', default=[], cast=lambda x: [tuple(admin.split(':')) for admin in x])
 MANAGERS = ADMINS
-
-# Internationalization for production
-USE_I18N = True
-USE_L10N = True
-USE_TZ = True
 
 print("Production settings loaded successfully")

@@ -13,7 +13,6 @@ Key Features:
 """
 
 import os
-import sys
 from pathlib import Path
 
 import environ
@@ -156,10 +155,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# User account settings
+USER_ACCOUNT_SETTINGS = {
+    'MAX_LOGIN_ATTEMPTS': 5,
+    'ACCOUNT_LOCK_DURATION': 30,  # minutes
+    'PASSWORD_EXPIRY_DAYS': 90,
+    'PASSWORD_HISTORY_COUNT': 5,
+    'FORCE_PASSWORD_CHANGE_ON_FIRST_LOGIN': True,
+}
+
 # Django REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.authentication.backends.JWTAuthentication',
+        'apps.authentication.backends.ServiceAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -178,6 +187,15 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'login': '5/min',
+    },
     'DEFAULT_PAGINATION_CLASS': 'apps.shared.pagination.StandardResultsSetPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
@@ -188,12 +206,18 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'apps.shared.exceptions.custom_exception_handler',
 }
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'apps.authentication.backends.CustomUserBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # API Documentation with Spectacular
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Neubit PSIM Core Platform API',
+    'TITLE': 'Core Platform API',
     'DESCRIPTION': 'Central authentication, authorization, and location management service for PSIM ecosystem',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
+    'VERSION': '1.1.0',
+    'SERVE_INCLUDE_SCHEMA': DEBUG,
     'SCHEMA_PATH_PREFIX': '/api/v1/',
     'COMPONENT_SPLIT_REQUEST': True,
     'SORT_OPERATIONS': False,
@@ -203,6 +227,15 @@ SPECTACULAR_SETTINGS = {
         'displayOperationId': True,
     },
     'SERVE_PERMISSIONS': ['rest_framework.permissions.IsAuthenticated'],
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User authentication endpoints'},
+        {'name': 'User Management', 'description': 'User management operations'},
+        {'name': 'Role Management', 'description': 'RBAC role management'},
+        {'name': 'Permission Management', 'description': 'Permission and access control'},
+        {'name': 'Service Authentication', 'description': 'Service-to-service authentication'},
+        {'name': 'Audit & Logging', 'description': 'Audit logs and monitoring'},
+        {'name': 'Session Management', 'description': 'User session management'},
+    ]
 }
 
 # Cache configuration with Redis
@@ -383,3 +416,31 @@ LOGGING = {
 # Logs Directory
 logs_dir = BASE_DIR.parent / 'logs'
 logs_dir.mkdir(exist_ok=True)
+
+# Add avatar upload path
+AVATAR_UPLOAD_PATH = 'avatars/%Y/%m/%d/'
+
+# RBAC Settings
+RBAC_SETTINGS = {
+    'ENABLE_ROLE_HIERARCHY': True,
+    'ENABLE_CONTEXT_PERMISSIONS': True,
+    'DEFAULT_ROLE_EXPIRY_DAYS': None,  # No expiry by default
+    'ENABLE_PERMISSION_REQUESTS': True,
+    'AUTO_APPROVE_SIMPLE_REQUESTS': False,
+}
+
+# Audit settings for authentication
+AUDIT_SETTINGS.update({
+    'LOG_LOGIN_ATTEMPTS': True,
+    'LOG_PERMISSION_CHECKS': True,
+    'LOG_ROLE_CHANGES': True,
+    'LOG_PASSWORD_CHANGES': True,
+})
+
+# Email settings for notifications
+EMAIL_TEMPLATES = {
+    'PASSWORD_RESET': 'emails/password_reset.html',
+    'ACCOUNT_LOCKED': 'emails/account_locked.html',
+    'ROLE_ASSIGNED': 'emails/role_assigned.html',
+    'PERMISSION_REQUEST': 'emails/permission_request.html',
+}
