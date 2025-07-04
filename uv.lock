@@ -306,6 +306,7 @@ dependencies = [
     { name = "django" },
     { name = "django-cors-headers" },
     { name = "django-db-connection-pool" },
+    { name = "django-debug-toolbar" },
     { name = "django-environ" },
     { name = "django-extensions" },
     { name = "django-guardian" },
@@ -342,6 +343,7 @@ requires-dist = [
     { name = "django", specifier = ">=5.2.4" },
     { name = "django-cors-headers", specifier = ">=4.7.0" },
     { name = "django-db-connection-pool", specifier = ">=1.2.6" },
+    { name = "django-debug-toolbar", specifier = ">=5.2.0" },
     { name = "django-environ", specifier = ">=0.12.0" },
     { name = "django-extensions", specifier = ">=4.1" },
     { name = "django-guardian", specifier = ">=3.0.3" },
@@ -448,6 +450,19 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/43/b1141323fd68c8571dcc032f2be3766e531fc5386e722884db255c1f14f3/django_db_connection_pool-1.2.6-py3-none-any.whl", hash = "sha256:80436d8228dfcbad02b75b5f65b328968105ef204672e7d84156407a82dbc5f4", size = 20712, upload-time = "2025-05-05T03:18:13.074Z" },
+]
+
+[[package]]
+name = "django-debug-toolbar"
+version = "5.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "sqlparse" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2a/9f/97ba2648f66fa208fc7f19d6895586d08bc5f0ab930a1f41032e60f31a41/django_debug_toolbar-5.2.0.tar.gz", hash = "sha256:9e7f0145e1a1b7d78fcc3b53798686170a5b472d9cf085d88121ff823e900821", size = 297901, upload-time = "2025-04-29T05:23:57.533Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/c2/ed3cb815002664349e9e50799b8c00ef15941f4cad797247cadbdeebab02/django_debug_toolbar-5.2.0-py3-none-any.whl", hash = "sha256:15627f4c2836a9099d795e271e38e8cf5204ccd79d5dbcd748f8a6c284dcd195", size = 262834, upload-time = "2025-04-29T05:23:55.472Z" },
 ]
 
 [[package]]

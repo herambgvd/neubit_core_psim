@@ -62,7 +62,6 @@ CACHES = {
 
 # Development-specific installed apps
 INSTALLED_APPS += [
-    'django_extensions',
     'debug_toolbar',
 ]
 

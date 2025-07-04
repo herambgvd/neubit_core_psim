@@ -13,6 +13,7 @@ Key Features:
 """
 
 import os
+import sys
 from pathlib import Path
 
 import environ
@@ -74,10 +75,10 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'apps.shared',
-    'apps.authentication',
-    'apps.users',
-    'apps.locations',
-    'apps.audit',
+    'apps.authentication.apps.AuthenticationConfig',
+    'apps.users.apps.UsersConfig',
+    'apps.locations.apps.LocationsConfig',
+    'apps.audit.apps.AuditConfig',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
