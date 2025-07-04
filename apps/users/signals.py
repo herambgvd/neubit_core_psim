@@ -1,8 +1,12 @@
 # Signal handlers for automatic profile creation
+import structlog
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from apps.users.models import User
+from apps.users.models import User, UserProfile
+
+# Configure structured logger
+logger = structlog.get_logger(__name__)
 
 
 @receiver(post_save, sender=User)

@@ -168,7 +168,6 @@ USER_ACCOUNT_SETTINGS = {
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.authentication.backends.JWTAuthentication',
-        'apps.authentication.backends.ServiceAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -176,34 +175,41 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
     ],
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
     ],
+    'DEFAULT_PAGINATION_CLASS': 'apps.shared.pagination.StandardResultsSetPagination',
+    'PAGE_SIZE': 20,
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'apps.shared.exceptions.custom_exception_handler',
+    # Throttling configuration - disable for development to avoid cache issues
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle'
-    ],
+    ] if not DEBUG else [],  # Disable throttling in development
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
         'user': '1000/hour',
-        'login': '5/min',
-    },
-    'DEFAULT_PAGINATION_CLASS': 'apps.shared.pagination.StandardResultsSetPagination',
-    'PAGE_SIZE': 20,
+        'login': '10/minute',
+    } if not DEBUG else {},  # Empty rates in development
+    # Versioning
     'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
     'DEFAULT_VERSION': 'v1',
     'ALLOWED_VERSIONS': ['v1'],
     'VERSION_PARAM': 'version',
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'EXCEPTION_HANDLER': 'apps.shared.exceptions.custom_exception_handler',
+    # Error handling
+    'NON_FIELD_ERRORS_KEY': 'errors',
+    'ORDERING_PARAM': 'ordering',
+    'SEARCH_PARAM': 'search',
 }
 
 # Authentication backends
@@ -242,18 +248,33 @@ SPECTACULAR_SETTINGS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': env('REDIS_URL'),
+        'LOCATION': env('REDIS_URL', default='redis://localhost:6379/1'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PARSER_CLASS': 'redis.connection.HiredisParser',
+            'PARSER_CLASS': 'redis.connection.PythonParser',  # Use PythonParser instead of HiredisParser
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 50,
+                'retry_on_timeout': True,
+            },
+            'SERIALIZER': 'django_redis.serializers.json.JSONSerializer',
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+        },
+        'KEY_PREFIX': 'neubit_core',
+        'TIMEOUT': 300,  # 5 minutes default timeout
+    },
+    'sessions': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL', default='redis://localhost:6379/2'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PARSER_CLASS': 'redis.connection.PythonParser',  # Use PythonParser instead of HiredisParser
             'CONNECTION_POOL_KWARGS': {
                 'max_connections': 50,
                 'retry_on_timeout': True,
             },
         },
-        'KEY_PREFIX': 'neubit_core',
-        'TIMEOUT': 300,  # 5 minutes default timeout
-        'VERSION': 1,
+        'KEY_PREFIX': 'neubit_sessions',
+        'TIMEOUT': 86400,  # 24 hours for sessions
     }
 }
 

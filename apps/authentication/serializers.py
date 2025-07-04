@@ -613,7 +613,14 @@ class AccessLogSerializer(serializers.ModelSerializer):
             'additional_context', 'timestamp', 'user_username',
             'service_account_name'
         ]
-        read_only_fields = '__all__'  # Access logs are read-only
+        # Fix: Change from read_only_fields = '__all__' to a list
+        read_only_fields = [
+            'id', 'user', 'service_account', 'action', 'resource',
+            'service_name', 'permission_required', 'access_granted',
+            'denial_reason', 'ip_address', 'user_agent',
+            'additional_context', 'timestamp', 'user_username',
+            'service_account_name'
+        ]
 
 
 class UserSessionSerializer(serializers.ModelSerializer):

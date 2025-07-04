@@ -49,18 +49,15 @@ DATABASES = {
 # Cache configuration for development
 CACHES = {
     'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': env('REDIS_URL', default='redis://localhost:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PARSER_CLASS': 'redis.connection.HiredisParser',
-        },
-        'KEY_PREFIX': 'neubit_core_dev',
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'neubit-core-cache',
         'TIMEOUT': 300,
-        'VERSION': 1,
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
     }
 }
-
 # Development-specific installed apps
 INSTALLED_APPS += [
     'debug_toolbar',
@@ -145,15 +142,12 @@ if 'test' in sys.argv:
             'NAME': ':memory:',
         }
     }
-
     # Use dummy cache for tests
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
         }
     }
-
-
     # Disable migrations for faster tests
     class DisableMigrations:
         def __contains__(self, item):
@@ -176,7 +170,7 @@ if 'test' in sys.argv:
 SECRET_KEY = env('SECRET_KEY', default='dev-secret-key-change-in-production')
 
 # Additional development tools
-SHELL_PLUS_PRINT_SQL = True
+SHELL_PLUS_PRINT_SQL = False
 SHELL_PLUS_PRINT_SQL_TRUNCATE = 1000
 
 # Development API documentation settings

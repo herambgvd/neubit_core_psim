@@ -11,6 +11,8 @@ import structlog
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404
 from rest_framework.views import exception_handler
+from rest_framework.response import Response
+from rest_framework import status
 
 # Configure structured logger
 logger = structlog.get_logger(__name__)
@@ -48,13 +50,13 @@ def custom_exception_handler(exc, context):
     if response is not None:
         # Customize the error response format
         custom_response_data = {
+            'success': False,
             'error': {
                 'code': _get_error_code(exc),
                 'message': _get_error_message(exc, response.data),
                 'details': _get_error_details(exc, response.data),
                 'correlation_id': correlation_id,
             },
-            'success': False,
             'data': None
         }
 
@@ -77,6 +79,16 @@ def _get_error_code(exc) -> str:
         ValidationError: 'VALIDATION_ERROR',
         PermissionDenied: 'PERMISSION_DENIED',
         Http404: 'NOT_FOUND',
+    }
+
+    exc_class_name = type(exc).__name__
+
+    # Check for DRF exception types
+    if hasattr(exc, 'default_code'):
+        return exc.default_code.upper()
+
+    # Common DRF exceptions
+    drf_codes = {
         'AuthenticationFailed': 'AUTHENTICATION_FAILED',
         'NotAuthenticated': 'NOT_AUTHENTICATED',
         'PermissionDenied': 'PERMISSION_DENIED',
@@ -89,13 +101,7 @@ def _get_error_code(exc) -> str:
         'ParseError': 'PARSE_ERROR',
     }
 
-    exc_class_name = type(exc).__name__
-
-    # Check for DRF exception types
-    if hasattr(exc, 'default_code'):
-        return exc.default_code.upper()
-
-    return error_codes.get(exc_class_name, 'INTERNAL_SERVER_ERROR')
+    return drf_codes.get(exc_class_name, error_codes.get(type(exc), 'INTERNAL_SERVER_ERROR'))
 
 
 def _get_error_message(exc, response_data) -> str:
