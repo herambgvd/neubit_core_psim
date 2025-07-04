@@ -1,0 +1,97 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+
+# Django specific
+*.log
+*.pot
+*.pyc
+*.pyo
+*.sqlite3
+db.sqlite3
+instance/
+local_settings.py
+settings_local.py
+.env
+.env.*
+
+# Django migration files
+**/migrations/
+!**/migrations/__init__.py
+
+# Media and static files (optional if generated)
+media/
+staticfiles/
+static_root/
+static/
+
+# VSCode / PyCharm / IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+htmlcov/
+.coverage
+.tox/
+.nox/
+.cache/
+pytest_cache/
+coverage.xml
+nosetests.xml
+test-results.xml
+
+# PEP 582; used by pythonloc
+__pypackages__/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pipenv
+Pipfile.lock
+
+# Docker / Compose
+*.pid
+*.seed
+docker-compose.override.yml
+
+# Celery beat schedule
+celerybeat-schedule
+
+# Backup files
+*.bak
+*.swp
+*.tmp
+*.old
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Other configs
+*.orig
+*.log

@@ -1,0 +1,388 @@
+# Docker Compose configuration for Neubit PSIM Core Platform Development Environment
+# This configuration sets up a complete microservices development environment
+# including all necessary infrastructure services and the Core Platform service
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  # Primary database for the Core Platform with development optimizations
+  postgres:
+    image: postgres:15-alpine
+    container_name: neubit_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: neubit_psim_core_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_MULTIPLE_DATABASES: neubit_psim_core_dev,test_neubit_psim_core_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
+      - ./infrastructure/docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    networks:
+      - neubit_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d neubit_psim_core_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis Cache and Session Store
+  # High-performance caching and session management for the microservices
+  redis:
+    image: redis:7-alpine
+    container_name: neubit_redis_dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - neubit_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Core Platform Service (Django)
+  # Central authentication, authorization, and location management service
+  core-platform:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/core/Dockerfile.dev
+      target: development
+    container_name: neubit_core_platform_dev
+    restart: unless-stopped
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings.development
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/neubit_psim_core_dev
+      - REDIS_URL=redis://:redis_password@redis:6379/1
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/2
+      - KONG_ADMIN_URL=http://kong:8001
+      - SERVICE_URL=http://core-platform:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src:delegated
+      - ./logs:/app/logs
+      - ./media:/app/media
+      - ./static:/app/static
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - neubit_network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python manage.py wait_for_db &&
+        echo 'Running migrations...' &&
+        python manage.py migrate &&
+        echo 'Collecting static files...' &&
+        python manage.py collectstatic --noinput &&
+        echo 'Creating superuser if not exists...' &&
+        python manage.py create_dev_superuser &&
+        echo 'Starting development server...' &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Celery Worker Service
+  # Background task processing for the Core Platform
+  celery-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/core-platform/Dockerfile.dev
+      target: development
+    container_name: neubit_celery_worker_dev
+    restart: unless-stopped
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings.development
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/neubit_psim_core_dev
+      - REDIS_URL=redis://:redis_password@redis:6379/1
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/2
+    volumes:
+      - ./src:/app/src:delegated
+      - ./logs:/app/logs
+      - ./media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-platform:
+        condition: service_healthy
+    networks:
+      - neubit_network
+    command: >
+      sh -c "
+        echo 'Waiting for Core Platform...' &&
+        sleep 30 &&
+        echo 'Starting Celery worker...' &&
+        celery -A core worker --loglevel=info --concurrency=2
+      "
+
+  # Celery Beat Scheduler
+  # Periodic task scheduler for automated processes
+  celery-beat:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/core-platform/Dockerfile.dev
+      target: development
+    container_name: neubit_celery_beat_dev
+    restart: unless-stopped
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings.development
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/neubit_psim_core_dev
+      - REDIS_URL=redis://:redis_password@redis:6379/1
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/2
+    volumes:
+      - ./src:/app/src:delegated
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-platform:
+        condition: service_healthy
+    networks:
+      - neubit_network
+    command: >
+      sh -c "
+        echo 'Waiting for Core Platform...' &&
+        sleep 30 &&
+        echo 'Starting Celery beat scheduler...' &&
+        celery -A core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+      "
+
+  # Flower - Celery Monitoring
+  # Web-based monitoring tool for Celery tasks
+  flower:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/core-platform/Dockerfile.dev
+      target: development
+    container_name: neubit_flower_dev
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/2
+      - FLOWER_PORT=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - neubit_network
+    command: >
+      sh -c "
+        echo 'Starting Flower monitoring...' &&
+        celery -A core flower --port=5555 --broker=redis://:redis_password@redis:6379/2
+      "
+
+  # Kong API Gateway
+  # API Gateway for microservices orchestration and management
+  kong-database:
+    image: postgres:15-alpine
+    container_name: neubit_kong_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kong
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong_password
+    volumes:
+      - kong_postgres_data:/var/lib/postgresql/data
+    networks:
+      - neubit_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong -d kong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  kong-migration:
+    image: kong:3.4-alpine
+    container_name: neubit_kong_migration_dev
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    networks:
+      - neubit_network
+    command: kong migrations bootstrap
+    restart: on-failure
+
+  kong:
+    image: kong:3.4-alpine
+    container_name: neubit_kong_dev
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+    ports:
+      - "8080:8000"  # Kong proxy port
+      - "8001:8001"  # Kong admin port
+    depends_on:
+      kong-database:
+        condition: service_healthy
+      kong-migration:
+        condition: service_completed_successfully
+    networks:
+      - neubit_network
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Konga - Kong Admin UI
+  # Web-based administration interface for Kong
+  konga:
+    image: pantsel/konga:latest
+    container_name: neubit_konga_dev
+    restart: unless-stopped
+    environment:
+      DB_ADAPTER: postgres
+      DB_URI: postgresql://kong:kong_password@kong-database:5432/kong
+      NODE_ENV: development
+    ports:
+      - "1337:1337"
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    networks:
+      - neubit_network
+
+  # Prometheus - Metrics Collection
+  # Time-series database for monitoring and alerting
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: neubit_prometheus_dev
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - neubit_network
+
+  # Grafana - Metrics Visualization
+  # Analytics and monitoring platform
+  grafana:
+    image: grafana/grafana:latest
+    container_name: neubit_grafana_dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - neubit_network
+    depends_on:
+      - prometheus
+
+  # Jaeger - Distributed Tracing
+  # Request tracing across microservices
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: neubit_jaeger_dev
+    restart: unless-stopped
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"
+      - "14268:14268"
+      - "14250:14250"
+      - "9411:9411"
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+    networks:
+      - neubit_network
+
+  # Mailhog - Email Testing
+  # Email testing tool for development
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: neubit_mailhog_dev
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    networks:
+      - neubit_network
+
+# Network configuration
+networks:
+  neubit_network:
+    driver: bridge
+    name: neubit_psim_network
+
+# Volume configuration for data persistence
+volumes:
+  postgres_data:
+    driver: local
+    name: neubit_postgres_data
+  redis_data:
+    driver: local
+    name: neubit_redis_data
+  kong_postgres_data:
+    driver: local
+    name: neubit_kong_postgres_data
+  prometheus_data:
+    driver: local
+    name: neubit_prometheus_data
+  grafana_data:
+    driver: local
+    name: neubit_grafana_data
